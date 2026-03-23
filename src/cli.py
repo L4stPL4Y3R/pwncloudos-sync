@@ -146,7 +146,7 @@ def get_tool_version(tool) -> str:
                 tool.version_command.split(),
                 capture_output=True, text=True, timeout=5
             )
-            if result.returncode == 0:
+            if result.returncode == 0 or result.stdout or result.stderr:
                 output = result.stdout + result.stderr
                 match = re.search(r'v?(\d+\.\d+\.?\d*)', output)
                 if match:
@@ -195,8 +195,13 @@ def check_tool_exists(tool) -> bool:
     # For pipx tools, check if command exists
     if tool.install_method == 'pipx':
         try:
-            result = subprocess.run(['which', tool.name], capture_output=True)
-            return result.returncode == 0
+            names_to_try = [tool.name, tool.path.name]
+            for candidate in names_to_try:
+                if not candidate:
+                    continue
+                result = subprocess.run(['which', candidate], capture_output=True)
+                if result.returncode == 0:
+                    return True
         except Exception:
             pass
 

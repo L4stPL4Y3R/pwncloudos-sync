@@ -86,15 +86,18 @@ class BinaryUpdater(BaseUpdater):
             response = requests.get(url, timeout=10)
 
             if not response.ok:
+                self.logger.debug(f"GitHub release query failed for {self.tool.github_repo}: HTTP {response.status_code}")
                 return None
 
             data = response.json()
             assets = data.get('assets', [])
+            if not assets:
+                return None
 
             # Get pattern for this tool and arch
             try:
                 pattern_info = get_binary_asset_pattern(self.tool.name, arch)
-                pattern = pattern_info['pattern']
+                pattern = pattern_info['pattern'].lower()
             except ValueError:
                 # No predefined pattern, try to find matching asset
                 arch_keywords = ['linux', arch]
@@ -105,19 +108,38 @@ class BinaryUpdater(BaseUpdater):
 
                 for asset in assets:
                     name = asset['name'].lower()
-                    if all(kw in name for kw in arch_keywords):
+                    if all(kw in name for kw in arch_keywords) and 'source code' not in name:
+                        return asset['browser_download_url']
+
+                # More tolerant fallback for non-standard naming
+                arch_tokens = ['amd64', 'x86_64', 'x64'] if arch == 'amd64' else ['arm64', 'aarch64', 'armv8']
+                for asset in assets:
+                    name = asset['name'].lower()
+                    if any(token in name for token in arch_tokens) and 'source code' not in name:
                         return asset['browser_download_url']
                 return None
 
             # Find matching asset
             import fnmatch
             for asset in assets:
-                if fnmatch.fnmatch(asset['name'], pattern) or fnmatch.fnmatch(asset['name'], pattern.replace('*', '')):
+                name = asset['name'].lower()
+                if fnmatch.fnmatch(name, pattern):
                     return asset['browser_download_url']
 
-            # Fallback: try pattern without wildcards
+            # Fallback: common Linux/arch naming styles
+            arch_tokens = ['amd64', 'x86_64', 'x64'] if arch == 'amd64' else ['arm64', 'aarch64', 'armv8']
             for asset in assets:
-                if arch in asset['name'].lower() and 'linux' in asset['name'].lower():
+                name = asset['name'].lower()
+                if (
+                    any(token in name for token in arch_tokens)
+                    and 'linux' in name
+                    and 'source code' not in name
+                ):
+                    return asset['browser_download_url']
+
+            for asset in assets:
+                name = asset['name'].lower()
+                if any(token in name for token in arch_tokens) and 'source code' not in name:
                     return asset['browser_download_url']
 
         except Exception as e:
@@ -130,11 +152,14 @@ class BinaryUpdater(BaseUpdater):
 
         download_url = self._get_download_url()
         if not download_url:
+            arch = detect_architecture()
             return UpdateResult(
-                success=False,
+                success=True,
                 tool_name=self.tool.name,
                 old_version=old_version,
-                error_message="Could not find download URL for current architecture"
+                new_version=old_version,
+                skipped=True,
+                skip_reason=f"No compatible release asset found for {arch}"
             )
 
         try:

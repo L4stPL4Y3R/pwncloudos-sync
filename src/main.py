@@ -163,10 +163,25 @@ def update_tool(tool, config, rollback_engine, state_manager, logger):
     """Update a single tool."""
     from .tools.registry import get_updater_for_tool
     from .core.safeguards import validate_update_target
+    from .core.arch import detect_architecture
+    from .updaters.base import UpdateResult
 
     logger.tool_start(tool.name)
 
     try:
+        # Skip tools not supported on current architecture.
+        current_arch = detect_architecture()
+        if tool.arch_support and current_arch not in tool.arch_support:
+            supported_arches = ', '.join(tool.arch_support)
+            reason = f"Unsupported on {current_arch} (supports: {supported_arches})"
+            logger.tool_skip(tool.name, reason)
+            return UpdateResult(
+                success=True,
+                tool_name=tool.name,
+                skipped=True,
+                skip_reason=reason,
+            )
+
         # Validate target path is safe to update
         validate_update_target(tool.path)
 
@@ -199,6 +214,10 @@ def update_tool(tool, config, rollback_engine, state_manager, logger):
         result = updater.perform_update()
 
         if result.success:
+            if result.skipped:
+                logger.tool_skip(tool.name, result.skip_reason or "Skipped")
+                return result
+
             # Verify update
             if updater.verify_update():
                 logger.tool_success(tool.name, result.old_version, result.new_version)

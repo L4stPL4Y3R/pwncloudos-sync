@@ -154,13 +154,22 @@ tools:
     github_repo: 0xZDH/Omnispray
     arch_support: [amd64, arm64]
 
-  - name: roadtools
+  - name: roadrecon
     category: azure
     install_method: pipx
     path: ~/.local/bin/roadrecon
-    pypi_name: roadtools
+    pypi_name: roadrecon
     github_repo: dirkjanm/ROADtools
     version_command: "roadrecon --version"
+    arch_support: [amd64, arm64]
+
+  - name: roadtx
+    category: azure
+    install_method: pipx
+    path: ~/.local/bin/roadtx
+    pypi_name: roadtx
+    github_repo: dirkjanm/ROADtools
+    version_command: "roadtx --version"
     arch_support: [amd64, arm64]
 
   - name: seamlesspass

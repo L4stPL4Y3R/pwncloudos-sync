@@ -151,21 +151,20 @@ class RollbackEngine:
 
     def _backup_pipx_state(self, tool, backup_name: str) -> RollbackData:
         """Record pipx package version for rollback."""
-        result = subprocess.run(
-            ['pipx', 'list', '--json'],
-            capture_output=True, text=True
-        )
+        venvs = self._load_pipx_venvs()
+        package_name = self._resolve_pipx_package_name(tool, venvs)
+        managed_by_pipx = bool(package_name)
+        version = "not-installed"
 
-        version = "unknown"
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            venv = data.get('venvs', {}).get(tool.pypi_name, {})
+        if package_name:
+            venv = venvs.get(package_name, {})
             version = venv.get('metadata', {}).get('main_package', {}).get('version', 'unknown')
 
         state_file = self.backup_dir / f"{backup_name}.json"
         state_file.write_text(json.dumps({
-            'package': tool.pypi_name,
+            'package': package_name or tool.pypi_name,
             'version': version,
+            'managed_by_pipx': managed_by_pipx,
         }))
 
         return RollbackData(
@@ -246,9 +245,13 @@ class RollbackEngine:
         state = json.loads(rollback_data.backup_path.read_text())
         package = state['package']
         version = state['version']
+        managed_by_pipx = state.get('managed_by_pipx', True)
 
-        if version == "unknown":
-            return False
+        if not managed_by_pipx:
+            return True
+
+        if not package or version in ("unknown", "not-installed"):
+            return True
 
         # Uninstall current and install specific version
         subprocess.run(['pipx', 'uninstall', package], capture_output=True)
@@ -283,3 +286,46 @@ class RollbackEngine:
             capture_output=True, text=True
         )
         return result.stdout.strip()
+
+    def _load_pipx_venvs(self) -> Dict[str, dict]:
+        """Load pipx metadata, returning empty data on failure."""
+        try:
+            result = subprocess.run(
+                ['pipx', 'list', '--json'],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                return data.get('venvs', {})
+        except Exception:
+            pass
+
+        return {}
+
+    def _resolve_pipx_package_name(self, tool, venvs: Dict[str, dict]) -> Optional[str]:
+        """Resolve the installed pipx package associated with a tool."""
+        if tool.pypi_name and tool.pypi_name in venvs:
+            return tool.pypi_name
+
+        command_name = tool.version_command.split()[0] if tool.version_command else Path(tool.path).name
+        target_path = Path(tool.path).expanduser().resolve(strict=False).as_posix()
+
+        for pkg_name, pkg_info in venvs.items():
+            metadata = pkg_info.get('metadata', {})
+            main_package = metadata.get('main_package', {})
+            app_paths = main_package.get('app_paths', [])
+            app_names = set(main_package.get('apps', []))
+
+            if command_name and command_name in app_names:
+                return pkg_name
+
+            for app in app_paths:
+                try:
+                    if Path(app).expanduser().resolve(strict=False).as_posix() == target_path:
+                        return pkg_name
+                except Exception:
+                    continue
+
+        return None
