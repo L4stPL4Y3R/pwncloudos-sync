@@ -1,0 +1,377 @@
+# pwncloudos-sync Tool Manifest
+# This file defines all tools that can be updated by pwncloudos-sync
+
+version: "1.0"
+last_updated: "2024-03-23"
+
+categories:
+  - name: aws
+    path: /opt/aws_tools
+    description: AWS Security Tools
+  - name: azure
+    path: /opt/azure_tools
+    description: Azure Security Tools
+  - name: gcp
+    path: /opt/gcp_tools
+    description: GCP Security Tools
+  - name: multi_cloud
+    path: /opt/multi_cloud_tools
+    description: Multi-Cloud Tools
+  - name: ps_tools
+    path: /opt/ps_tools
+    description: PowerShell Tools
+  - name: code_scanning
+    path: /opt/code_scanning
+    description: Code/Secret Scanning Tools
+  - name: cracking
+    path: /opt/cracking-tools
+    description: Password Cracking Tools
+  - name: system
+    path: null
+    description: System-wide Tools
+
+tools:
+  # === AWS Tools ===
+  - name: AWeSomeUserFinder
+    category: aws
+    install_method: git_python
+    path: /opt/aws_tools/AWeSomeUserFinder
+    github_repo: dievus/AWeSomeUserFinder
+    arch_support: [amd64, arm64]
+
+  - name: aws-enumerator
+    category: aws
+    install_method: binary
+    path: /opt/aws_tools/aws_enumerator/aws-enumerator
+    github_repo: shabarkin/aws-enumerator
+    arch_support: [amd64, arm64]
+
+  - name: github-oidc-checker
+    category: aws
+    install_method: git_python
+    path: /opt/aws_tools/github-oidc-checker
+    github_repo: Rezonate-io/github-oidc-checker
+    arch_support: [amd64, arm64]
+
+  - name: iamgraph
+    category: aws
+    install_method: pipx
+    path: ~/.local/bin/iamgraph
+    pypi_name: iamgraph
+    github_repo: WithSecureLabs/IAMGraph
+    version_command: "iamgraph --version"
+    arch_support: [amd64, arm64]
+
+  - name: pacu
+    category: aws
+    install_method: pipx
+    path: ~/.local/bin/pacu
+    pypi_name: pacu
+    github_repo: RhinoSecurityLabs/pacu
+    version_command: "pacu --version"
+    arch_support: [amd64, arm64]
+
+  - name: pmapper
+    category: aws
+    install_method: pipx
+    path: ~/.local/bin/pmapper
+    pypi_name: principalmapper
+    github_repo: nccgroup/PMapper
+    version_command: "pmapper --version"
+    arch_support: [amd64, arm64]
+
+  - name: s3-account-search
+    category: aws
+    install_method: pipx
+    path: ~/.local/bin/s3-account-search
+    pypi_name: s3-account-search
+    github_repo: WeAreCloudar/s3-account-search
+    arch_support: [amd64, arm64]
+
+  # === Azure Tools ===
+  - name: AzSubEnum
+    category: azure
+    install_method: git_python
+    path: /opt/azure_tools/AzSubEnum
+    github_repo: yuyudhn/AzSubEnum
+    arch_support: [amd64, arm64]
+
+  - name: azurehound
+    category: azure
+    install_method: binary
+    path: /opt/azure_tools/azure_hound/azurehound
+    github_repo: BloodHoundAD/AzureHound
+    version_command: "azurehound --version"
+    arch_support: [amd64, arm64]
+
+  - name: basicblobfinder
+    category: azure
+    install_method: git_python
+    path: /opt/azure_tools/basicblobfinder
+    github_repo: joswr1ght/basicblobfinder
+    arch_support: [amd64, arm64]
+
+  - name: bloodhound
+    category: azure
+    install_method: docker
+    path: /opt/azure_tools/bloodhound
+    github_repo: SpecterOps/BloodHound
+    docker_compose: /opt/azure_tools/bloodhound/bloodhound.yml
+    arch_support: [amd64, arm64]
+
+  - name: exfil_exchange_mail
+    category: azure
+    install_method: git
+    path: /opt/azure_tools/exfil_exchange_mail
+    github_repo: rootsecdev/Azure-Red-Team
+    arch_support: [amd64, arm64]
+
+  - name: o365enum
+    category: azure
+    install_method: git_python
+    path: /opt/azure_tools/o365enum
+    github_repo: gremwell/o365enum
+    arch_support: [amd64, arm64]
+
+  - name: o365spray
+    category: azure
+    install_method: git_python
+    path: /opt/azure_tools/o365spray
+    github_repo: 0xZDH/o365spray
+    arch_support: [amd64, arm64]
+
+  - name: Oh365UserFinder
+    category: azure
+    install_method: git_python
+    path: /opt/azure_tools/Oh365UserFinder
+    github_repo: dievus/Oh365UserFinder
+    arch_support: [amd64, arm64]
+
+  - name: Omnispray
+    category: azure
+    install_method: git_python
+    path: /opt/azure_tools/Omnispray
+    github_repo: 0xZDH/Omnispray
+    arch_support: [amd64, arm64]
+
+  - name: roadtools
+    category: azure
+    install_method: pipx
+    path: ~/.local/bin/roadrecon
+    pypi_name: roadtools
+    github_repo: dirkjanm/ROADtools
+    version_command: "roadrecon --version"
+    arch_support: [amd64, arm64]
+
+  - name: seamlesspass
+    category: azure
+    install_method: pipx
+    path: ~/.local/bin/seamlesspass
+    pypi_name: seamlesspass
+    github_repo: Malcrove/SeamlessPass
+    arch_support: [amd64, arm64]
+
+  # === GCP Tools ===
+  - name: automated-cloud-misconfiguration-testing
+    category: gcp
+    install_method: git
+    path: /opt/gcp_tools/automated-cloud-misconfiguration-testing
+    github_repo: pwnedlabs/automated-cloud-misconfiguration-testing
+    arch_support: [amd64, arm64]
+
+  - name: gcp-permissions-checker
+    category: gcp
+    install_method: git_python
+    path: /opt/gcp_tools/gcp-permissions-checker
+    github_repo: egre55/gcp-permissions-checker
+    arch_support: [amd64, arm64]
+
+  - name: gcp_scanner
+    category: gcp
+    install_method: git_python
+    path: /opt/gcp_tools/gcp_scanner
+    github_repo: google/gcp_scanner
+    arch_support: [amd64, arm64]
+
+  - name: google-workspace-enum
+    category: gcp
+    install_method: git
+    path: /opt/gcp_tools/google-workspace-enum
+    github_repo: pwnedlabs/google-workspace-enum
+    arch_support: [amd64, arm64]
+
+  - name: iam-policy-visualize
+    category: gcp
+    install_method: git_python
+    path: /opt/gcp_tools/iam-policy-visualize
+    github_repo: hac01/iam-policy-visualize
+    arch_support: [amd64, arm64]
+
+  - name: sprayshark
+    category: gcp
+    install_method: pipx
+    path: ~/.local/bin/sprayshark
+    pypi_name: sprayshark
+    github_repo: helviojunior/sprayshark
+    version_command: "sprayshark --version"
+    arch_support: [amd64, arm64]
+
+  - name: username-anarchy
+    category: gcp
+    install_method: git
+    path: /opt/gcp_tools/username-anarchy
+    github_repo: urbanadventurer/username-anarchy
+    arch_support: [amd64, arm64]
+
+  # === Multi-Cloud Tools ===
+  - name: cloudfox
+    category: multi_cloud
+    install_method: binary
+    path: /home/pwnedlabs/go/bin/cloudfox
+    github_repo: BishopFox/cloudfox
+    version_command: "cloudfox --version"
+    arch_support: [amd64, arm64]
+
+  - name: powerpipe
+    category: multi_cloud
+    install_method: custom
+    path: /usr/local/bin/powerpipe
+    github_repo: turbot/powerpipe
+    custom_handler: update_powerpipe.sh
+    version_command: "powerpipe --version"
+    arch_support: [amd64, arm64]
+
+  - name: prowler
+    category: multi_cloud
+    install_method: pipx
+    path: ~/.local/bin/prowler
+    pypi_name: prowler
+    github_repo: prowler-cloud/prowler
+    version_command: "prowler --version"
+    arch_support: [amd64, arm64]
+
+  - name: s3scanner
+    category: multi_cloud
+    install_method: pipx
+    path: ~/.local/bin/s3scanner
+    pypi_name: s3scanner
+    github_repo: sa7mon/S3Scanner
+    version_command: "s3scanner --version"
+    arch_support: [amd64, arm64]
+
+  - name: scoutsuite
+    category: multi_cloud
+    install_method: pipx
+    path: ~/.local/bin/scout
+    pypi_name: scoutsuite
+    github_repo: nccgroup/ScoutSuite
+    version_command: "scout --version"
+    arch_support: [amd64, arm64]
+
+  - name: steampipe
+    category: multi_cloud
+    install_method: custom
+    path: /usr/local/bin/steampipe
+    github_repo: turbot/steampipe
+    custom_handler: update_steampipe.sh
+    version_command: "steampipe --version"
+    arch_support: [amd64, arm64]
+
+  # === PowerShell Tools ===
+  - name: AADInternals
+    category: ps_tools
+    install_method: git
+    path: /opt/ps_tools/AADInternals
+    github_repo: Gerenios/AADInternals
+    arch_support: [amd64, arm64]
+
+  - name: GraphRunner
+    category: ps_tools
+    install_method: git
+    path: /opt/ps_tools/GraphRunner
+    github_repo: dafthack/GraphRunner
+    arch_support: [amd64, arm64]
+
+  - name: invoke_modules
+    category: ps_tools
+    install_method: git
+    path: /opt/ps_tools/invoke_modules
+    github_repo: PowerShellMafia/PowerSploit
+    arch_support: [amd64, arm64]
+
+  - name: MFASweep
+    category: ps_tools
+    install_method: git
+    path: /opt/ps_tools/MFASweep
+    github_repo: dafthack/MFASweep
+    arch_support: [amd64, arm64]
+
+  - name: TokenTacticsV2
+    category: ps_tools
+    install_method: git
+    path: /opt/ps_tools/TokenTacticsV2
+    github_repo: f-bader/TokenTacticsV2
+    arch_support: [amd64, arm64]
+
+  # === Code Scanning Tools ===
+  - name: git-secrets
+    category: code_scanning
+    install_method: git
+    path: /opt/code_scanning/git-secrets
+    github_repo: awslabs/git-secrets
+    requires_compile: true
+    version_command: "git-secrets --version"
+    arch_support: [amd64, arm64]
+
+  - name: trufflehog
+    category: code_scanning
+    install_method: pipx
+    path: ~/.local/bin/trufflehog
+    pypi_name: trufflehog
+    github_repo: trufflesecurity/trufflehog
+    version_command: "trufflehog --version"
+    arch_support: [amd64, arm64]
+
+  # === Cracking Tools ===
+  - name: john
+    category: cracking
+    install_method: custom
+    path: /opt/cracking-tools/john
+    github_repo: openwall/john
+    custom_handler: update_john.sh
+    version_command: "/opt/cracking-tools/john/run/john --version"
+    requires_compile: true
+    arch_support: [amd64, arm64]
+
+  - name: hashcat
+    category: cracking
+    install_method: apt
+    path: /usr/bin/hashcat
+    apt_package: hashcat
+    version_command: "hashcat --version"
+    arch_support: [amd64, arm64]
+
+  # === System Tools ===
+  - name: azure-cli
+    category: system
+    install_method: pipx
+    path: ~/.local/bin/az
+    pypi_name: azure-cli
+    version_command: "az --version"
+    arch_support: [amd64, arm64]
+
+  - name: impacket
+    category: system
+    install_method: pipx
+    path: ~/.local/bin/
+    pypi_name: impacket
+    github_repo: fortra/impacket
+    arch_support: [amd64, arm64]
+
+  - name: awscli
+    category: system
+    install_method: apt
+    path: /usr/bin/aws
+    apt_package: awscli
+    version_command: "aws --version"
+    arch_support: [amd64, arm64]
