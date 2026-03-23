@@ -11,7 +11,10 @@ import logging
 from pathlib import Path
 from datetime import datetime
 
-from .cli import create_parser, parse_args
+from .cli import (
+    create_parser, parse_args, print_banner, print_tools_table,
+    print_update_summary, confirm_update, Colors
+)
 from .config import Config, load_config
 from .logger import setup_logging, SyncLogger
 from .core.connectivity import check_internet_connectivity, check_github_api_rate_limit
@@ -31,70 +34,110 @@ def main() -> int:
     # Load configuration
     config = load_config(args)
 
+    # Print banner (unless quiet mode)
+    if not config.quiet:
+        print_banner()
+
     # Setup logging
     logger = setup_logging(config)
     sync_logger = SyncLogger(config.log_file, config.verbose)
 
     logger.info(f"pwncloudos-sync v1.0.0 starting at {datetime.now().isoformat()}")
 
-    # Pre-flight checks
-    logger.info("Running pre-flight checks...")
-
-    # Check architecture
-    try:
-        arch = detect_architecture()
-        logger.info(f"Detected architecture: {arch}")
-    except Exception as e:
-        logger.error(f"Failed to detect architecture: {e}")
-        return 3
-
-    # Check internet connectivity
-    if not check_internet_connectivity():
-        logger.error("No internet connectivity. Cannot proceed.")
-        return 4
-
-    # Check GitHub API rate limit
-    rate_info = check_github_api_rate_limit()
-    if rate_info and rate_info['remaining'] < 100:
-        logger.warning(f"GitHub API rate limit low: {rate_info['remaining']} remaining")
-
-    # Check sudo privileges for /opt/ writes
-    if not check_sudo_available():
-        logger.error("sudo access required for updating tools in /opt/")
-        return 5
-
-    # Request sudo upfront to cache credentials
-    if not config.dry_run:
-        request_sudo_upfront()
-
-    # Load tools manifest
-    logger.info("Loading tools manifest...")
+    # Load tools manifest (do this before connectivity checks for --list)
+    if not config.quiet:
+        print(f"{Colors.CYAN}Loading tools manifest...{Colors.END}")
     tools = load_tools_manifest()
 
     # Filter tools based on arguments
     tools_to_update = get_tools_for_update(tools, config)
-    logger.info(f"Found {len(tools_to_update)} tools to check for updates")
 
+    # Handle --list: Show tools and exit (no network required)
     if config.list_only:
-        # Just list tools and exit
-        print_tool_list(tools_to_update)
+        print_tools_table(tools_to_update)
         return 0
 
+    # Pre-flight checks
+    if not config.quiet:
+        print(f"\n{Colors.CYAN}Running pre-flight checks...{Colors.END}")
+
+    # Check architecture
+    try:
+        arch = detect_architecture()
+        if not config.quiet:
+            print(f"  {Colors.GREEN}✓{Colors.END} Architecture: {Colors.WHITE}{arch}{Colors.END}")
+        logger.info(f"Detected architecture: {arch}")
+    except Exception as e:
+        print(f"  {Colors.RED}✗{Colors.END} Architecture detection failed: {e}")
+        return 3
+
+    # Check internet connectivity
+    if not check_internet_connectivity():
+        print(f"  {Colors.RED}✗{Colors.END} No internet connectivity")
+        return 4
+    if not config.quiet:
+        print(f"  {Colors.GREEN}✓{Colors.END} Internet connectivity: OK")
+
+    # Check GitHub API rate limit
+    rate_info = check_github_api_rate_limit()
+    if rate_info:
+        remaining = rate_info['remaining']
+        if remaining < 100:
+            print(f"  {Colors.YELLOW}⚠{Colors.END} GitHub API rate limit low: {remaining} remaining")
+        else:
+            if not config.quiet:
+                print(f"  {Colors.GREEN}✓{Colors.END} GitHub API rate limit: {remaining} remaining")
+
+    # Check sudo privileges for /opt/ writes
+    if not check_sudo_available():
+        print(f"  {Colors.RED}✗{Colors.END} sudo access required for updating tools in /opt/")
+        return 5
+    if not config.quiet:
+        print(f"  {Colors.GREEN}✓{Colors.END} sudo privileges: OK")
+
+    if not config.quiet:
+        print(f"\n{Colors.GREEN}All pre-flight checks passed!{Colors.END}")
+
+    logger.info(f"Found {len(tools_to_update)} tools to check for updates")
+
+    # Handle --check: Check for updates without installing
     if config.check_only:
-        # Check for updates without installing
         check_updates_only(tools_to_update, config, logger)
         return 0
 
+    # VALIDATION STEP: Show tools table first
+    print(f"\n{Colors.BOLD}{Colors.WHITE}The following tools will be checked for updates:{Colors.END}")
+    print_tools_table(tools_to_update)
+
+    # Show update summary
+    print_update_summary(tools_to_update)
+
+    # Confirmation prompt (unless --yes/-y flag is used)
+    if not config.no_confirm and not config.dry_run:
+        if not confirm_update():
+            print(f"\n{Colors.YELLOW}Update cancelled by user.{Colors.END}\n")
+            return 0
+
+    # Request sudo upfront to cache credentials
+    if not config.dry_run:
+        print(f"\n{Colors.CYAN}Requesting sudo credentials...{Colors.END}")
+        request_sudo_upfront()
+
     # Initialize rollback engine
-    rollback_engine = RollbackEngine(config.backup_dir)
+    backup_dir = Path.home() / '.cache' / 'pwncloudos-sync' / 'backups'
+    rollback_engine = RollbackEngine(backup_dir)
 
     # Initialize state manager
-    state_manager = StateManager(config.state_dir)
+    state_dir = Path.home() / '.cache' / 'pwncloudos-sync' / 'state'
+    state_manager = StateManager(state_dir)
     state_manager.load()
 
     # Perform updates
+    print(f"\n{Colors.BOLD}{Colors.CYAN}Starting updates...{Colors.END}\n")
+
     results = []
-    for tool in tools_to_update:
+    for i, tool in enumerate(tools_to_update, 1):
+        print(f"[{i}/{len(tools_to_update)}] ", end='')
         result = update_tool(tool, config, rollback_engine, state_manager, sync_logger)
         results.append(result)
 
@@ -106,7 +149,9 @@ def main() -> int:
 
     # Determine exit code
     success_count = sum(1 for r in results if r.success)
-    if success_count == len(results):
+    failed_count = sum(1 for r in results if not r.success and not r.skipped)
+
+    if failed_count == 0:
         return 0
     elif success_count > 0:
         return 1
@@ -180,32 +225,67 @@ def update_tool(tool, config, rollback_engine, state_manager, logger):
         )
 
 
-def print_tool_list(tools):
-    """Print list of tools."""
-    print(f"\n{'Tool':<30} {'Category':<15} {'Method':<20} {'Path'}")
-    print("-" * 100)
-    for tool in tools:
-        print(f"{tool.name:<30} {tool.category:<15} {tool.install_method:<20} {tool.path}")
-
-
 def check_updates_only(tools, config, logger):
     """Check for updates without installing."""
     from .tools.registry import get_updater_for_tool
+    from .cli import Colors
 
-    print(f"\n{'Tool':<30} {'Current':<15} {'Latest':<15} {'Status'}")
-    print("-" * 80)
+    print(f"\n{Colors.CYAN}{'═' * 80}{Colors.END}")
+    print(f"{Colors.BOLD}{Colors.WHITE}                         CHECKING FOR UPDATES{Colors.END}")
+    print(f"{Colors.CYAN}{'═' * 80}{Colors.END}\n")
 
-    for tool in tools:
+    updates_available = []
+    up_to_date = []
+    errors = []
+
+    for i, tool in enumerate(tools, 1):
+        print(f"\r{Colors.GRAY}Checking [{i}/{len(tools)}] {tool.name}...{Colors.END}          ", end='', flush=True)
         try:
             updater = get_updater_for_tool(tool, config)
             current = updater.get_current_version() or "unknown"
             latest = updater.get_latest_version() or "unknown"
             needs_update = updater.needs_update()
 
-            status = "UPDATE AVAILABLE" if needs_update else "Up to date"
-            print(f"{tool.name:<30} {current:<15} {latest:<15} {status}")
+            if needs_update:
+                updates_available.append((tool.name, current, latest))
+            else:
+                up_to_date.append((tool.name, current))
         except Exception as e:
-            print(f"{tool.name:<30} {'error':<15} {'error':<15} {str(e)[:20]}")
+            errors.append((tool.name, str(e)[:30]))
+
+    print("\r" + " " * 80 + "\r", end='')  # Clear line
+
+    # Updates available
+    if updates_available:
+        print(f"{Colors.YELLOW}{Colors.BOLD}Updates Available ({len(updates_available)}):{Colors.END}")
+        for name, current, latest in updates_available:
+            print(f"  {Colors.YELLOW}↑{Colors.END} {name}: {current} → {Colors.GREEN}{latest}{Colors.END}")
+
+    # Up to date
+    if up_to_date:
+        print(f"\n{Colors.GREEN}{Colors.BOLD}Already Up to Date ({len(up_to_date)}):{Colors.END}")
+        for name, version in up_to_date:
+            print(f"  {Colors.GREEN}✓{Colors.END} {name} ({version})")
+
+    # Errors
+    if errors:
+        print(f"\n{Colors.RED}{Colors.BOLD}Check Failed ({len(errors)}):{Colors.END}")
+        for name, error in errors:
+            print(f"  {Colors.RED}✗{Colors.END} {name}: {error}")
+
+    print(f"\n{Colors.CYAN}{'═' * 80}{Colors.END}")
+
+    # Summary
+    print(f"\n{Colors.BOLD}Summary:{Colors.END}")
+    print(f"  • Updates available: {Colors.YELLOW}{len(updates_available)}{Colors.END}")
+    print(f"  • Up to date: {Colors.GREEN}{len(up_to_date)}{Colors.END}")
+    if errors:
+        print(f"  • Errors: {Colors.RED}{len(errors)}{Colors.END}")
+
+    if updates_available:
+        print(f"\n{Colors.BOLD}Run {Colors.CYAN}pwncloudos-sync --all{Colors.END}{Colors.BOLD} to update.{Colors.END}")
+
+    print()
 
 
 class UpdateResult:

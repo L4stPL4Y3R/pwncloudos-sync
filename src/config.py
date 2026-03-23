@@ -22,6 +22,7 @@ class Config:
     dry_run: bool = False
     force: bool = False
     no_rollback: bool = False
+    no_confirm: bool = False
     parallel: bool = False
     max_workers: int = 4
 
@@ -105,6 +106,8 @@ def apply_cli_args(config: Config, args):
         config.force = args.force
     if hasattr(args, 'no_rollback'):
         config.no_rollback = args.no_rollback
+    if hasattr(args, 'no_confirm'):
+        config.no_confirm = args.no_confirm
     if hasattr(args, 'parallel'):
         config.parallel = args.parallel
     if hasattr(args, 'workers'):
