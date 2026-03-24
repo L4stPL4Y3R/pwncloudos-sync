@@ -165,4 +165,4 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 - [PwnCloudOS Download](https://pwncloudos.pwnedlabs.io/)
 - [PwnCloudOS Documentation](https://pwncloudos.readthedocs.io/)
-- [GitHub Repository](https://github.com/L4stPL4Y3R/pwncloudos-sync)
+- [GitHub Repository](https://github.com/pwnedlabs/pwncloudos-sync)
