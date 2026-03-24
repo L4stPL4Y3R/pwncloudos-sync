@@ -19,6 +19,55 @@ class GitUpdater(BaseUpdater):
     """Updater for git repositories."""
 
     # ------------------------------------------------------------------ #
+    # Git command helpers — handle /opt/ ownership (root-owned, user-run)
+    # ------------------------------------------------------------------ #
+
+    def _needs_sudo(self) -> bool:
+        """Check if git operations on this tool path need sudo."""
+        if os.geteuid() == 0:
+            return False
+        tool_path = Path(self.tool.path)
+        try:
+            git_dir = tool_path / '.git'
+            if git_dir.exists():
+                return not os.access(git_dir, os.W_OK)
+        except Exception:
+            pass
+        return str(tool_path).startswith('/opt/')
+
+    def _git_cmd(self, *args, write: bool = False) -> List[str]:
+        """
+        Build a git command list, prepending sudo if needed for write ops.
+
+        Args:
+            *args: git subcommand and arguments (without 'git' prefix)
+            write: True if the command writes to .git/ (fetch, pull, reset)
+        """
+        cmd = ['git', '-C', str(self.tool.path)] + list(args)
+        if write and self._needs_sudo():
+            cmd = ['sudo'] + cmd
+        return cmd
+
+    def _ensure_safe_directory(self) -> None:
+        """Add tool path to git safe.directory if not already configured."""
+        tool_path_str = str(self.tool.path)
+        try:
+            result = subprocess.run(
+                ['git', 'config', '--global', '--get-all', 'safe.directory'],
+                capture_output=True, text=True, timeout=5
+            )
+            configured = result.stdout.strip().splitlines()
+            if tool_path_str in configured or '*' in configured:
+                return
+            # Add it (needs sudo if user can't write to root's gitconfig)
+            subprocess.run(
+                ['git', 'config', '--global', '--add', 'safe.directory', tool_path_str],
+                capture_output=True, text=True, timeout=5
+            )
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------ #
     # Launcher file protection
     # ------------------------------------------------------------------ #
 
@@ -42,8 +91,9 @@ class GitUpdater(BaseUpdater):
 
         # Untracked .ps1 files (custom PwnCloudOS additions not in upstream)
         try:
+            self._ensure_safe_directory()
             result = subprocess.run(
-                ['git', '-C', str(tool_path), 'ls-files', '--others', '--exclude-standard', '*.ps1'],
+                self._git_cmd('ls-files', '--others', '--exclude-standard', '*.ps1'),
                 capture_output=True, text=True, timeout=10
             )
             if result.returncode == 0:
@@ -92,9 +142,10 @@ class GitUpdater(BaseUpdater):
 
     def get_current_version(self) -> Optional[str]:
         """Get current commit hash."""
+        self._ensure_safe_directory()
         try:
             result = subprocess.run(
-                ['git', '-C', str(self.tool.path), 'rev-parse', '--short', 'HEAD'],
+                self._git_cmd('rev-parse', '--short', 'HEAD'),
                 capture_output=True, text=True
             )
             if result.returncode == 0:
@@ -105,19 +156,20 @@ class GitUpdater(BaseUpdater):
 
     def get_latest_version(self) -> Optional[str]:
         """Get latest commit hash from remote."""
+        self._ensure_safe_directory()
         try:
-            # Fetch first — check return code
+            # Fetch first — check return code (write op: updates .git/FETCH_HEAD)
             fetch = subprocess.run(
-                ['git', '-C', str(self.tool.path), 'fetch', 'origin'],
+                self._git_cmd('fetch', 'origin', write=True),
                 capture_output=True, text=True, timeout=60
             )
             if fetch.returncode != 0:
-                self.logger.warning(f"git fetch failed: {fetch.stderr.strip()}")
+                self.logger.debug(f"git fetch failed: {fetch.stderr.strip()}")
                 return None
 
             # Get remote HEAD
             result = subprocess.run(
-                ['git', '-C', str(self.tool.path), 'rev-parse', '--short', 'origin/HEAD'],
+                self._git_cmd('rev-parse', '--short', 'origin/HEAD'),
                 capture_output=True, text=True
             )
 
@@ -125,7 +177,7 @@ class GitUpdater(BaseUpdater):
                 # Try origin/main or origin/master
                 for branch in ['origin/main', 'origin/master']:
                     result = subprocess.run(
-                        ['git', '-C', str(self.tool.path), 'rev-parse', '--short', branch],
+                        self._git_cmd('rev-parse', '--short', branch),
                         capture_output=True, text=True
                     )
                     if result.returncode == 0:
@@ -138,26 +190,27 @@ class GitUpdater(BaseUpdater):
 
     def needs_update(self) -> bool:
         """Check if there are new commits."""
+        self._ensure_safe_directory()
         try:
-            # Fetch first — check return code
+            # Fetch first — write op (updates .git/FETCH_HEAD)
             fetch = subprocess.run(
-                ['git', '-C', str(self.tool.path), 'fetch', 'origin'],
+                self._git_cmd('fetch', 'origin', write=True),
                 capture_output=True, text=True, timeout=60
             )
             if fetch.returncode != 0:
-                self.logger.warning(f"git fetch failed: {fetch.stderr.strip()}")
+                self.logger.debug(f"git fetch failed: {fetch.stderr.strip()}")
                 return False
 
             # Count commits behind
             result = subprocess.run(
-                ['git', '-C', str(self.tool.path), 'rev-list', 'HEAD...origin/HEAD', '--count'],
+                self._git_cmd('rev-list', 'HEAD...origin/HEAD', '--count'),
                 capture_output=True, text=True
             )
 
             if result.returncode != 0:
                 # Try with explicit branch
                 result = subprocess.run(
-                    ['git', '-C', str(self.tool.path), 'rev-list', 'HEAD...origin/main', '--count'],
+                    self._git_cmd('rev-list', 'HEAD...origin/main', '--count'),
                     capture_output=True, text=True
                 )
 
@@ -171,6 +224,7 @@ class GitUpdater(BaseUpdater):
 
     def perform_update(self) -> UpdateResult:
         """Execute git pull, protecting launcher files."""
+        self._ensure_safe_directory()
         old_version = self.get_current_version()
 
         # Protect launcher files before ANY git mutation
@@ -179,7 +233,7 @@ class GitUpdater(BaseUpdater):
         try:
             # Try git pull first (use tracked upstream, not 'origin HEAD')
             result = subprocess.run(
-                ['git', '-C', str(self.tool.path), 'pull'],
+                self._git_cmd('pull', write=True),
                 capture_output=True, text=True, timeout=120
             )
 
@@ -187,14 +241,14 @@ class GitUpdater(BaseUpdater):
                 # If pull fails, try reset --hard
                 self.logger.warning("git pull failed, trying reset --hard")
                 result = subprocess.run(
-                    ['git', '-C', str(self.tool.path), 'reset', '--hard', 'origin/HEAD'],
+                    self._git_cmd('reset', '--hard', 'origin/HEAD', write=True),
                     capture_output=True, text=True, timeout=60
                 )
 
                 if result.returncode != 0:
                     # Try with explicit branch
                     result = subprocess.run(
-                        ['git', '-C', str(self.tool.path), 'reset', '--hard', 'origin/main'],
+                        self._git_cmd('reset', '--hard', 'origin/main', write=True),
                         capture_output=True, text=True, timeout=60
                     )
 
@@ -235,10 +289,11 @@ class GitUpdater(BaseUpdater):
 
     def verify_update(self) -> bool:
         """Verify git repository is in good state."""
+        self._ensure_safe_directory()
         try:
             result = subprocess.run(
-                ['git', '-C', str(self.tool.path), 'status'],
-                capture_output=True, timeout=10
+                self._git_cmd('status'),
+                capture_output=True, text=True, timeout=10
             )
             return result.returncode == 0
         except Exception:

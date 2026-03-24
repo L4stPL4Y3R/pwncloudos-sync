@@ -225,8 +225,20 @@ def get_tool_version(tool) -> str:
         git_dir = tool.path / '.git'
         if git_dir.exists():
             try:
+                # Ensure safe.directory is configured for /opt/ paths
+                tool_path_str = str(tool.path)
+                safe_check = subprocess.run(
+                    ['git', 'config', '--global', '--get-all', 'safe.directory'],
+                    capture_output=True, text=True, timeout=5
+                )
+                configured = safe_check.stdout.strip().splitlines() if safe_check.returncode == 0 else []
+                if tool_path_str not in configured and '*' not in configured:
+                    subprocess.run(
+                        ['git', 'config', '--global', '--add', 'safe.directory', tool_path_str],
+                        capture_output=True, text=True, timeout=5
+                    )
                 result = subprocess.run(
-                    ['git', '-C', str(tool.path), 'rev-parse', '--short', 'HEAD'],
+                    ['git', '-C', tool_path_str, 'rev-parse', '--short', 'HEAD'],
                     capture_output=True, text=True, timeout=5
                 )
                 if result.returncode == 0:
