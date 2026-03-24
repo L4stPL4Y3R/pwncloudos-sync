@@ -4,100 +4,118 @@ A standalone tool that performs in-place upgrades of all security tools installe
 
 ## Features
 
-- **Multi-method updates**: Supports git pull, file replacement, pipx upgrade, binary downloads, and more
+- **Smart version detection**: Checks installed vs latest version for 44 security tools
+- **Interactive default mode**: Shows a color-coded version table, then offers to update
+- **Auto-retry**: Failed tools are automatically retried after the first pass
+- **Multi-method updates**: Supports git, pipx, binary downloads, Docker, apt, custom scripts
 - **Architecture-aware**: Automatically detects AMD64/ARM64 and downloads correct binaries
-- **Non-destructive**: Full rollback on any failure - never breaks a working tool
-- **Idempotent**: Running twice produces the same state as running once
-- **Launcher-safe**: Never modifies launcher scripts or desktop files
-- **Lightweight updates**: For simple Python tools, only replaces `.py` + `requirements.txt`
+- **Non-destructive**: Full rollback on any failure — never breaks a working tool
+- **Launcher-safe**: Never modifies PwnCloudOS launcher scripts or desktop files
+- **Category colors**: Each tool category (AWS, Azure, GCP, etc.) gets a distinct color
 
 ## Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/L4stPL4Y3R/pwncloudos-sync.git
-cd pwncloudos-sync
+# On your PwnCloudOS VM:
+cd /opt/pwncloudos-sync
 
-# Install dependencies
-pip3 install -r requirements.txt
+# Install dependencies (first time only)
+pip3 install -r requirements.txt --break-system-packages
 
-# Run the updater
-sudo ./pwncloudos-sync --all
+# Run the updater (default: check + offer to update)
+python3 -m src.main
 ```
 
 ## Usage
 
 ```bash
-# Update all tools
-pwncloudos-sync --all
+# Default mode — check all tools, show table, offer to update
+python3 -m src.main
 
-# Update only AWS tools
-pwncloudos-sync --category aws
+# Update all tools (skip the check table, go straight to updating)
+python3 -m src.main --all
 
-# Update specific tools
-pwncloudos-sync --tool cloudfox --tool prowler
+# Update all tools, skip confirmation prompt
+python3 -m src.main --all -y
 
-# Dry run (show what would be updated)
-pwncloudos-sync --dry-run
+# Check for updates only (no changes)
+python3 -m src.main --check
 
-# Check for updates without installing
-pwncloudos-sync --check
+# List all tools with installed versions
+python3 -m src.main --list
 
-# List all tools and versions
-pwncloudos-sync --list
+# Update only a specific category
+python3 -m src.main --category aws
+python3 -m src.main --category azure
+python3 -m src.main --category gcp
 
-# Force update even if current
-pwncloudos-sync --all --force
+# Update specific tool(s)
+python3 -m src.main --tool cloudfox
+python3 -m src.main --tool cloudfox --tool prowler
 
-# Verbose output
-pwncloudos-sync --all -vv
+# Exclude tools from update
+python3 -m src.main --all --exclude bloodhound
 
-# Parallel updates (faster)
-pwncloudos-sync --all --parallel
+# Dry run (show what would be updated, no changes)
+python3 -m src.main --dry-run
+
+# Force update even if already at latest version
+python3 -m src.main --all --force
+
+# Verbose output (for debugging)
+python3 -m src.main --all -v      # info level
+python3 -m src.main --all -vv     # debug level
+
+# Skip confirmation prompt
+python3 -m src.main --all --yes
 ```
 
-## Supported Tool Categories
+## Supported Tool Categories (44 tools)
 
-| Category | Location | Tools |
-|----------|----------|-------|
-| AWS | `/opt/aws_tools/` | AWeSomeUserFinder, pacu, pmapper, IAMGraph, etc. |
-| Azure | `/opt/azure_tools/` | AzureHound, ROADtools, o365spray, BloodHound, etc. |
-| GCP | `/opt/gcp_tools/` | gcp_scanner, sprayshark, username-anarchy, etc. |
-| Multi-Cloud | `/opt/multi_cloud_tools/` | cloudfox, prowler, ScoutSuite, steampipe, etc. |
-| PowerShell | `/opt/ps_tools/` | AADInternals, GraphRunner, TokenTacticsV2, etc. |
-| Code Scanning | `/opt/code_scanning/` | trufflehog, git-secrets |
-| Cracking | `/opt/cracking-tools/` | John the Ripper, hashcat |
+| Category | Color | Location | Example Tools |
+|----------|-------|----------|---------------|
+| **aws** | 🟠 Orange | `/opt/aws_tools/` | AWeSomeUserFinder, pacu, pmapper, s3-account-search |
+| **azure** | 🔵 Blue | `/opt/azure_tools/` | AzureHound, BloodHound, ROADtools, o365spray |
+| **gcp** | 🟢 Teal | `/opt/gcp_tools/` | gcp_scanner, google-spray, google-workspace-enum |
+| **multi_cloud** | 🟣 Lavender | `/opt/multi_cloud_tools/` | cloudfox, prowler, ScoutSuite, steampipe, powerpipe |
+| **ps_tools** | 🩷 Pink | `/opt/ps_tools/` | AADInternals, GraphRunner, TokenTacticsV2, MFASweep |
+| **code_scanning** | 🟢 Lime | `/opt/code_scanning/` | trufflehog, git-secrets |
+| **cracking** | 🟤 Salmon | `/opt/cracking-tools/` | John the Ripper, hashcat |
+| **system** | 🔵 Sky | system-wide | azure-cli, impacket, awscli |
 
 ## Update Methods
 
 | Method | Description |
 |--------|-------------|
-| `git_pull` | Full `git pull` for repositories with `.git` directory |
-| `file_replacement` | Download only `.py` + `requirements.txt` (lightweight) |
-| `pipx` | Use `pipx upgrade` for pipx-installed tools |
+| `git` / `git_python` | `git pull` with launcher file protection |
+| `pipx` | `pipx upgrade` for pipx-installed tools |
 | `binary` | Download arch-specific binary from GitHub Releases |
-| `apt` | Use `apt-get upgrade` for system packages |
-| `docker` | Pull latest Docker images |
-| `custom` | Run custom update scripts |
+| `apt` | `apt-get upgrade` for system packages |
+| `docker` | `docker compose pull` for containerized tools |
+| `custom` | Run shell scripts (powerpipe, steampipe, john) |
+| `file_replacement` | Download only `.py` + `requirements.txt` (lightweight) |
 
 ## Architecture Support
 
-- **AMD64** (x86_64): VirtualBox, VMware Workstation
-- **ARM64** (aarch64): VMware on Apple Silicon (M-series)
+- **AMD64** (x86_64): VirtualBox, VMware Workstation, cloud VMs
+- **ARM64** (aarch64): VMware Fusion on Apple Silicon (M-series)
 
 ## Safety Features
 
-1. **Protected Paths**: Launcher scripts and desktop files are never modified
-2. **Automatic Backup**: State is saved before each update
-3. **Rollback**: Failed updates are automatically rolled back
-4. **Verification**: Tools are tested after update to ensure they work
+1. **Protected launcher files**: Backed up before git operations, restored after
+2. **Automatic rollback**: Failed updates are rolled back via git reset or file restore
+3. **sudo-aware**: Handles root-owned `/opt/` paths transparently
+4. **safe.directory**: Auto-configures git for repos owned by root
+5. **Verification**: Tools are tested after update to ensure they still work
+6. **Auto-retry**: Failed tools get a second attempt after all others complete
 
 ## Requirements
 
-- Python 3.10+
-- PwnCloudOS v1.2+
+- Python 3.10+ (Python 3.11 on Debian 12)
+- PwnCloudOS (Debian 12 Bookworm)
 - Internet connectivity
 - sudo access (for `/opt/` directory writes)
+- PyYAML, requests, packaging (`pip3 install -r requirements.txt`)
 
 ## Configuration
 
@@ -116,28 +134,35 @@ skip_tools:
 
 | Code | Meaning |
 |------|---------|
-| 0 | All updates successful |
+| 0 | All updates successful (or all up-to-date) |
 | 1 | Some updates failed (partial success) |
 | 2 | All updates failed |
-| 3 | Configuration error |
 | 4 | Network connectivity error |
-| 5 | Permission denied |
+| 5 | sudo access denied |
+
+## One-Time Setup (google-spray)
+
+To replace SprayShark with google-spray:
+
+```bash
+sudo bash /opt/pwncloudos-sync/scripts/setup_google_spray.sh
+```
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome!
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ## Credits
 
-- [PwnCloudOS](https://pwncloudos.pwnedlabs.io/) by PwnedLabs
+- [PwnCloudOS](https://pwncloudos.pwnedlabs.io/) by [PwnedLabs](https://pwnedlabs.io/)
 - All the amazing security tool authors
 
 ## Links
 
 - [PwnCloudOS Download](https://pwncloudos.pwnedlabs.io/)
-- [PwnCloudOS GitHub](https://github.com/pwnedlabs/pwncloudos)
-- [Documentation](https://pwncloudos.readthedocs.io/)
+- [PwnCloudOS Documentation](https://pwncloudos.readthedocs.io/)
+- [GitHub Repository](https://github.com/L4stPL4Y3R/pwncloudos-sync)
